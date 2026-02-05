@@ -6,12 +6,17 @@ import {
     fetchRecipeById,
     fetchRecipeByUserId,
     updateRecipe,
-    deleteRecipe
+    deleteRecipe,
+    addRating,
+    toggleLike
 } from "../controller/recipeController.js";
 
 const router = express.Router();
 
 router.post("/", protect, createRecipe);
+router.post("/:id/rate", protect, addRating);
+router.post("/:id/like", protect, toggleLike);
+
 router.get("/", fetchAllRecipe);
 router.get("/:id", fetchRecipeById);
 router.get("/user/:userId", fetchRecipeByUserId);

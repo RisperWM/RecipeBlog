@@ -1,353 +1,308 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, ActivityIndicator, TouchableOpacity, Dimensions } from 'react-native';
-import { useLocalSearchParams, Stack, useRouter } from 'expo-router'; // Added useRouter
-import { useQuery } from '@tanstack/react-query';
+import React, { useState, useLayoutEffect } from 'react';
+import {
+  View, Text, StyleSheet, ScrollView, Image, ActivityIndicator,
+  TouchableOpacity, Dimensions, Alert, TextInput, Modal, Pressable
+} from 'react-native';
+import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { recipeService } from '@/src/service/recipeService';
 import { Ionicons } from '@expo/vector-icons';
 import Checkbox from 'expo-checkbox';
-import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-
-// --- TYPES ---
-interface Recipe {
-  _id?: string;
-  name: string;
-  imageUrl: string;
-  prepTime: number;
-  cookTime: number;
-  cuisine: string;
-  category: string;
-  servings?: number;
-  ingredients: { name: string; quantity: string; unit: string }[];
-  steps: { instruction: string }[];
-  createdBy: {
-    _id?: string;
-    firstName: string;
-    surname: string;
-  };
-}
-
-type TabType = 'Ingredients' | 'Instructions';
+import { useAuthStore } from '@/src/store/authStore';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export default function RecipeDetailScreen() {
+  const user = useAuthStore((state) => state.user);
   const { id } = useLocalSearchParams<{ id: string }>();
-  const router = useRouter(); // Initialize router
-  const [activeTab, setActiveTab] = useState<TabType>('Ingredients');
-  const [isLiked, setIsLiked] = useState(false);
-  const [checkedIngredients, setCheckedIngredients] = useState<string[]>([]);
+  const router = useRouter();
+  const navigation = useNavigation();
+  const queryClient = useQueryClient();
 
-  const { data: recipe, isLoading, error } = useQuery<Recipe>({
+  const [activeTab, setActiveTab] = useState<'Ingredients' | 'Instructions'>('Ingredients');
+  const [checkedIngredients, setCheckedIngredients] = useState<string[]>([]);
+  const [newComment, setNewComment] = useState("");
+  const [ratingModalVisible, setRatingModalVisible] = useState(false);
+  const [selectedStars, setSelectedStars] = useState(0);
+
+  const { data: recipe, isLoading, error } = useQuery({
     queryKey: ['recipe', id],
-    queryFn: () => recipeService.fetchRecipeById(id as string) as any,
+    queryFn: () => recipeService.fetchRecipeById(id as string),
     enabled: !!id,
   });
 
+  const { data: comments = [] } = useQuery({
+    queryKey: ['comments', id],
+    queryFn: () => recipeService.fetchComments(id as string),
+    enabled: !!id,
+  });
+
+  const isCurrentlyLiked = !!(recipe as any)?.isLiked;
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerTitle: '',
+      headerTransparent: true,
+      headerTintColor: '#fff',
+      headerRight: () => (
+        <View style={styles.headerRightContainer}>
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: '/create-recipe-modal', params: { initialData: JSON.stringify(recipe) } })}
+            style={styles.headerIconButton}
+          >
+            <Ionicons name="create-outline" size={20} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => handleLike()} style={styles.headerIconButton}>
+            <Ionicons
+              name={isCurrentlyLiked ? "heart" : "heart-outline"}
+              size={20}
+              color={isCurrentlyLiked ? "#ef4444" : "#fff"}
+            />
+          </TouchableOpacity>
+        </View>
+      ),
+    });
+  }, [navigation, isCurrentlyLiked, recipe]);
+
+
+  const { mutate: handleLike } = useMutation({
+    mutationFn: () => {
+      if (!user?.id) throw new Error("You must be logged in to like recipes.");
+      return recipeService.toggleLike(id as string, user.id);
+    },
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: ['recipe', id] });
+      const previousRecipe = queryClient.getQueryData(['recipe', id]);
+
+      queryClient.setQueryData(['recipe', id], (old: any) => {
+        if (!old) return old;
+        const currentStatus = !!old.isLiked;
+        return {
+          ...old,
+          isLiked: !currentStatus,
+          likesCount: !currentStatus
+            ? (Number(old.likesCount) || 0) + 1
+            : Math.max(0, (Number(old.likesCount) || 1) - 1)
+        };
+      });
+      return { previousRecipe };
+    },
+    onError: (err: any, __, context) => {
+      queryClient.setQueryData(['recipe', id], context?.previousRecipe);
+      Alert.alert("Action Failed", err.message || "Could not update like status.");
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['recipe', id] }),
+  });
+
+  const { mutate: submitRating, isPending: isSubmittingRating } = useMutation({
+    mutationFn: (score: number) => recipeService.addRating(id!, user?.id || '', score),
+    onSuccess: (data) => {
+      queryClient.setQueryData(['recipe', id], (old: any) => ({
+        ...old,
+        averageRating: data.averageRating,
+        ratingCount: data.ratingCount
+      }));
+      setRatingModalVisible(false);
+      setSelectedStars(0);
+      Alert.alert("Success", "Thanks for your feedback!");
+    },
+    onError: (err: any) => Alert.alert("Error", err.message),
+  });
+
+  const { mutate: submitComment, isPending: isSubmittingComment } = useMutation({
+    mutationFn: () => recipeService.addComment({ recipeId: id!, userId: user?.id || '', text: newComment }),
+    onSuccess: () => {
+      setNewComment("");
+      queryClient.invalidateQueries({ queryKey: ['comments', id] });
+    },
+    onError: (err: any) => Alert.alert("Error", err.message),
+  });
+
   const toggleIngredient = (name: string) => {
-    if (checkedIngredients.includes(name)) {
-      setCheckedIngredients(prev => prev.filter(i => i !== name));
-    } else {
-      setCheckedIngredients(prev => [...prev, name]);
-    }
+    setCheckedIngredients(prev =>
+      prev.includes(name) ? prev.filter(i => i !== name) : [...prev, name]
+    );
   };
 
-  if (isLoading) return (
-    <View style={styles.centered}>
-      <ActivityIndicator size="large" color="#f97316" />
-    </View>
-  );
-
-  if (error || !recipe) return (
-    <View style={styles.centered}>
-      <Text style={styles.errorText}>Recipe not found.</Text>
-    </View>
-  );
+  if (isLoading) return <View style={styles.centered}><ActivityIndicator size="large" color="#f97316" /></View>;
+  if (error || !recipe) return <View style={styles.centered}><Text style={styles.errorText}>Recipe not found.</Text></View>;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <Stack.Screen options={{
-        title: '',
-        headerTransparent: true,
-        headerTintColor: '#fff',
-        headerBackTitle: "",
-        headerRight: () => (
-          <View style={styles.headerRightContainer}>
-            {/* EDIT BUTTON */}
-            <TouchableOpacity
-              onPress={() => router.push({
-                pathname: '/create-recipe-modal',
-                params: { initialData: JSON.stringify(recipe) }
-              })}
-              style={styles.headerIconButton}
-            >
-              <Ionicons name="create-outline" size={22} color="#fff" />
-            </TouchableOpacity>
-
-            {/* LIKE BUTTON */}
-            <TouchableOpacity onPress={() => setIsLiked(!isLiked)} style={styles.headerIconButton}>
-              <Ionicons
-                name={isLiked ? "heart" : "heart-outline"}
-                size={22}
-                color={isLiked ? "#ef4444" : "#fff"}
-              />
-            </TouchableOpacity>
-          </View>
-        )
-      }} />
-
       <ScrollView style={styles.container} bounces={false} showsVerticalScrollIndicator={false}>
         <Image source={{ uri: recipe.imageUrl }} style={styles.heroImage} />
 
         <View style={styles.content}>
-
-          {/* --- TITLE & AUTHOR --- */}
           <View style={styles.headerSection}>
             <Text style={styles.title}>{recipe.name}</Text>
-            <View style={styles.authorBadge}>
-              <Text style={styles.authorLabel}>Recipe by</Text>
-              <Text style={styles.authorName}>
-                {recipe.createdBy?.firstName} {recipe.createdBy?.surname}
-              </Text>
-            </View>
+            <TouchableOpacity style={styles.ratingRow} onPress={() => setRatingModalVisible(true)}>
+              <Ionicons name="star" size={16} color="#f59e0b" />
+              <Text style={styles.ratingValue}>{(recipe as any).averageRating || '0.0'}</Text>
+              <Text style={styles.ratingCount}>({(recipe as any).ratingCount || 0} reviews) • Rate</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* --- META ROW (USER FRIENDLY) --- */}
           <View style={styles.metaRow}>
-            <View style={styles.metaBox}>
-              <Ionicons name="time-outline" size={20} color="#f97316" />
-              <View>
-                <Text style={styles.metaLabel}>Time</Text>
-                <Text style={styles.metaValue}>{(recipe.prepTime || 0) + (recipe.cookTime || 0)} mins</Text>
-              </View>
-            </View>
-
+            <MetaBox icon="time-outline" label="Total" value={`${(recipe.prepTime || 0) + (recipe.cookTime || 0)}m`} />
             <View style={styles.metaDivider} />
-
-            <View style={styles.metaBox}>
-              <Ionicons name="people-outline" size={20} color="#f97316" />
-              <View>
-                <Text style={styles.metaLabel}>Serves</Text>
-                <Text style={styles.metaValue}>{recipe.servings || 1} People</Text>
-              </View>
-            </View>
-
+            <MetaBox icon="people-outline" label="Servings" value={`${recipe.servings || 1}`} />
             <View style={styles.metaDivider} />
-
-            <View style={styles.metaBox}>
-              <Ionicons name="flame-outline" size={20} color="#f97316" />
-              <View>
-                <Text style={styles.metaLabel}>Kind</Text>
-                <Text style={styles.metaValue}>{recipe.category || 'Easy'}</Text>
-              </View>
-            </View>
+            <MetaBox icon="flame-outline" label="Category" value={recipe.category} />
           </View>
 
-          {/* --- TABS --- */}
           <View style={styles.tabContainer}>
-            {(['Ingredients', 'Instructions'] as TabType[]).map((tab) => (
+            {['Ingredients', 'Instructions'].map((tab) => (
               <TouchableOpacity
                 key={tab}
-                onPress={() => setActiveTab(tab)}
+                onPress={() => setActiveTab(tab as any)}
                 style={[styles.tab, activeTab === tab && styles.activeTab]}
               >
-                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-                  {tab}
-                </Text>
+                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
           <View style={styles.detailsContainer}>
             {activeTab === 'Ingredients' ? (
-              recipe.ingredients?.map((ing, index: number) => {
-                const isSelected = checkedIngredients.includes(ing.name);
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.ingredientItem}
-                    onPress={() => toggleIngredient(ing.name)}
-                    activeOpacity={0.7}
-                  >
-                    <FontAwesome6 name="list-check" size={14} color="#6d6b6b" style={{ marginRight: 10 }} />
-                    <Text style={[styles.ingredientText, isSelected && styles.textChecked]}>
-                      {ing.name}
-                    </Text>
-                    <Text style={[styles.qtyText, isSelected && styles.textChecked]}>
-                      {ing.quantity} {ing.unit}
-                    </Text>
-                    <Checkbox
-                      style={styles.checkbox}
-                      value={isSelected}
-                      onValueChange={() => toggleIngredient(ing.name)}
-                      color={isSelected ? '#f97316' : '#cbd5e1'}
-                    />
-                  </TouchableOpacity>
-                );
-              })
+              recipe.ingredients?.map((ing, idx) => (
+                <View key={idx} style={styles.ingredientItem}>
+                  <Checkbox
+                    value={checkedIngredients.includes(ing.name)}
+                    onValueChange={() => toggleIngredient(ing.name)}
+                    color={checkedIngredients.includes(ing.name) ? '#f97316' : undefined}
+                    style={styles.checkbox}
+                  />
+                  <Text style={[styles.ingredientText, checkedIngredients.includes(ing.name) && styles.textChecked]}>{ing.name}</Text>
+                  <Text style={styles.qtyText}>{ing.quantity} {ing.unit}</Text>
+                </View>
+              ))
             ) : (
-              recipe.steps?.map((step, index: number) => (
-                <View key={index} style={styles.stepItem}>
-                  <View style={styles.stepHeader}>
-                    <Text style={styles.stepNumber}>STEP {index + 1}</Text>
-                  </View>
+              recipe.steps?.map((step, idx) => (
+                <View key={idx} style={styles.stepItem}>
+                  <Text style={styles.stepNumber}>STEP {idx + 1}</Text>
                   <Text style={styles.stepText}>{step.instruction}</Text>
                 </View>
               ))
             )}
           </View>
+
+          <View style={styles.commentSection}>
+            <Text style={styles.sectionTitle}>Comments ({comments.length})</Text>
+            <View style={styles.commentInputRow}>
+              <TextInput
+                style={styles.input}
+                placeholder="Add a comment..."
+                value={newComment}
+                onChangeText={setNewComment}
+                multiline
+              />
+              <TouchableOpacity
+                onPress={() => submitComment()}
+                disabled={!newComment.trim() || isSubmittingComment}
+                style={[styles.sendBtn, !newComment.trim() && styles.disabledBtn]}
+              >
+                {isSubmittingComment ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="send" size={18} color="#fff" />}
+              </TouchableOpacity>
+            </View>
+
+            {comments.map((comment: any) => (
+              <View key={comment._id} style={styles.commentBubble}>
+                <View style={styles.commentHeader}>
+                  <Text style={styles.commentUser}>{comment.userId?.firstName} {comment.userId?.surname}</Text>
+                  <Text style={styles.commentDate}>{new Date(comment.createdAt).toLocaleDateString()}</Text>
+                </View>
+                <Text style={styles.commentText}>{comment.text}</Text>
+              </View>
+            ))}
+          </View>
         </View>
       </ScrollView>
+
+      <Modal animationType="fade" transparent visible={ratingModalVisible} onRequestClose={() => setRatingModalVisible(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setRatingModalVisible(false)}>
+          <Pressable style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Rate this Recipe</Text>
+            <View style={styles.starRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity key={star} onPress={() => setSelectedStars(star)}>
+                  <Ionicons name={star <= selectedStars ? "star" : "star-outline"} size={40} color="#f59e0b" />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setRatingModalVisible(false)}><Text style={styles.cancelBtnText}>Cancel</Text></TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.submitBtn, selectedStars === 0 && styles.disabledBtn]}
+                disabled={selectedStars === 0 || isSubmittingRating}
+                onPress={() => submitRating(selectedStars)}
+              >
+                {isSubmittingRating ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitBtnText}>Submit</Text>}
+              </TouchableOpacity>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
+
+const MetaBox = ({ icon, label, value }: any) => (
+  <View style={styles.metaBox}>
+    <Ionicons name={icon} size={18} color="#f97316" />
+    <View><Text style={styles.metaLabel}>{label}</Text><Text style={styles.metaValue}>{value}</Text></View>
+  </View>
+);
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   errorText: { color: '#64748b', fontSize: 16 },
   heroImage: { width: '100%', height: SCREEN_HEIGHT * 0.35 },
-  headerRightContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginRight: 15,
-  },
-  headerIconButton: {
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    padding: 8,
-    borderRadius: 25,
-  },
-  content: {
-    padding: 20,
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    marginTop: -32,
-    backgroundColor: '#fff',
-    minHeight: SCREEN_HEIGHT * 0.6,
-  },
-  headerSection: {
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#0f172a',
-    textAlign: "center",
-    textTransform: "capitalize"
-  },
-  authorBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-    gap: 4
-  },
-  authorLabel: {
-    fontSize: 14,
-    color: '#64748b',
-  },
-  authorName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#f97316',
-  },
-  metaRow: {
-    flexDirection: 'row',
-    backgroundColor: '#f8fafc',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 24,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#f1f5f9',
-  },
-  metaBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  metaDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: '#e2e8f0',
-    marginHorizontal: 10,
-  },
-  metaLabel: {
-    fontSize: 11,
-    color: '#64748b',
-    textTransform: 'uppercase',
-    fontWeight: '600',
-    letterSpacing: 0.5,
-  },
-  metaValue: {
-    fontSize: 13,
-    color: '#1e293b',
-    fontWeight: '700',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#f1f5f9',
-    borderRadius: 30,
-    marginBottom: 20,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderRadius: 26,
-  },
-  activeTab: {
-    backgroundColor: "#f97316",
-    elevation: 3,
-    shadowColor: '#f97316',
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-  },
-  tabText: { fontSize: 15, fontWeight: '700', color: '#64748b' },
+  headerRightContainer: { flexDirection: 'row', alignItems: 'center', gap: 10, marginRight: 15 },
+  headerIconButton: { backgroundColor: 'rgba(0,0,0,0.4)', padding: 8, borderRadius: 20 },
+  content: { padding: 20, borderTopLeftRadius: 32, borderTopRightRadius: 32, marginTop: -32, backgroundColor: '#fff', minHeight: SCREEN_HEIGHT * 0.7 },
+  headerSection: { marginBottom: 20 },
+  title: { fontSize: 24, fontWeight: '800', color: '#0f172a', marginBottom: 5 },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  ratingValue: { fontSize: 14, fontWeight: '700', color: '#1e293b' },
+  ratingCount: { fontSize: 12, color: '#64748b' },
+  metaRow: { flexDirection: 'row', backgroundColor: '#f8fafc', borderRadius: 16, padding: 15, marginBottom: 20, justifyContent: 'space-between', borderWidth: 1, borderColor: '#f1f5f9' },
+  metaBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  metaDivider: { width: 1, height: 25, backgroundColor: '#e2e8f0' },
+  metaLabel: { fontSize: 10, color: '#64748b', fontWeight: '600' },
+  metaValue: { fontSize: 12, color: '#1e293b', fontWeight: '700' },
+  tabContainer: { flexDirection: 'row', backgroundColor: '#f1f5f9', borderRadius: 25, marginBottom: 20, padding: 4 },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 22 },
+  activeTab: { backgroundColor: "#f97316" },
+  tabText: { fontSize: 14, fontWeight: '700', color: '#64748b' },
   activeTabText: { color: '#fff' },
-  detailsContainer: { paddingBottom: 40 },
-  ingredientItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-  },
-  checkbox: {
-    width: 18,
-    height: 18,
-  },
-  ingredientText: {
-    fontSize: 16,
-    color: '#334155',
-    flex: 1,
-    fontWeight: '500'
-  },
-  qtyText: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginHorizontal: 10
-  },
-  textChecked: {
-    textDecorationLine: 'line-through',
-    color: '#cbd5e1',
-  },
-  stepItem: { marginBottom: 24 },
-  stepHeader: { marginBottom: 6 },
-  stepNumber: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: '#f97316',
-    letterSpacing: 1.5
-  },
-  stepText: {
-    fontSize: 16,
-    color: '#334155',
-    lineHeight: 26,
-    fontWeight: '400'
-  }
+  detailsContainer: { marginBottom: 30 },
+  ingredientItem: { flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 },
+  checkbox: { width: 20, height: 20, borderRadius: 4 },
+  ingredientText: { fontSize: 16, color: '#334155', flex: 1 },
+  qtyText: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  textChecked: { textDecorationLine: 'line-through', color: '#cbd5e1' },
+  stepItem: { marginBottom: 20 },
+  stepNumber: { fontSize: 11, fontWeight: '900', color: '#f97316', marginBottom: 4 },
+  stepText: { fontSize: 16, color: '#334155', lineHeight: 24 },
+  commentSection: { borderTopWidth: 1, borderColor: '#f1f5f9', paddingTop: 25 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a', marginBottom: 15 },
+  commentInputRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
+  input: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#e2e8f0', minHeight: 45 },
+  sendBtn: { backgroundColor: '#f97316', width: 45, height: 45, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  disabledBtn: { backgroundColor: '#cbd5e1' },
+  commentBubble: { backgroundColor: '#f8fafc', padding: 15, borderRadius: 16, marginBottom: 12 },
+  commentHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
+  commentUser: { fontWeight: '700', fontSize: 14, color: '#1e293b' },
+  commentDate: { fontSize: 11, color: '#94a3b8' },
+  commentText: { color: '#475569', lineHeight: 20 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { backgroundColor: '#fff', borderRadius: 24, padding: 25, width: '90%', alignItems: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: '800', marginBottom: 20 },
+  starRow: { flexDirection: 'row', gap: 10, marginBottom: 30 },
+  modalActions: { flexDirection: 'row', gap: 10, width: '100%' },
+  cancelBtn: { flex: 1, padding: 15, alignItems: 'center' },
+  cancelBtnText: { color: '#64748b', fontWeight: '700' },
+  submitBtn: { flex: 1, backgroundColor: '#f97316', padding: 15, borderRadius: 12, alignItems: 'center' },
+  submitBtnText: { color: '#fff', fontWeight: '800' }
 });

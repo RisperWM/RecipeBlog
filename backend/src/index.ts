@@ -5,6 +5,7 @@ import mongoose from 'mongoose';
 import { protect } from './middleware/auth.js';
 import userRoutes from './routes/userRoutes.js'
 import recipeRoutes from './routes/recipeRoutes.js';
+import commentRoutes from './routes/commentRoutes.js'
 
 dotenv.config();
 
@@ -20,6 +21,7 @@ app.use(express.json());
 app.get('/', (req, res) => res.send('Recipe API Running'));
 app.use('/api/auth', userRoutes)
 app.use('/api/recipes', recipeRoutes);
+app.use('/api/comments', commentRoutes);
 
 // Database Connection
 if (!MONGO_URI) {

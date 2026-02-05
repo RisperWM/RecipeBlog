@@ -1,8 +1,7 @@
 import mongoose, { Schema, Document } from 'mongoose';
 import { CUISINES } from '@shared/constants/cuisine.js';
 import { MEAL_CATEGORIES } from '@shared/constants/mealCategory.js';
-
-// 1. Define the allowed taxonomies as constants
+import { int } from 'zod';
 
 interface Ingredient {
     name: string;
@@ -15,7 +14,11 @@ interface Step {
     instruction: string;
 }
 
-// 2. Updated Interface
+interface Rating {
+    userId:string
+    score:number
+}
+
 export interface IRecipe extends Document {
     name: string;
     cuisine: typeof CUISINES[number];
@@ -28,6 +31,10 @@ export interface IRecipe extends Document {
     cookTime?: number;
     servings?: number;
     tags?: string[];
+    likes:string[];
+    ratings: Rating[],
+    averageRating:number;
+    ratingCount:number;
     createdBy: mongoose.Types.ObjectId | ICreator;
     createdAt: Date;
     updatedAt: Date;
@@ -63,7 +70,6 @@ const RecipeSchema = new Schema<IRecipe>(
         imageUrl: { type: String, required: true },
         description: { type: String },
 
-        // 3. Add Enums to the Schema for database-level validation
         cuisine: {
             type: String,
             enum: CUISINES,
@@ -83,6 +89,15 @@ const RecipeSchema = new Schema<IRecipe>(
         cookTime: Number,
         servings: Number,
         tags: [String],
+        likes: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+        ratings: [
+            {
+                userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+                score: { type: Number, required: true, min: 1, max: 5 }
+            }
+        ],
+        averageRating: { type: Number, default: 0 },
+        ratingCount: { type: Number, default: 0 },
         createdBy: {
             type: Schema.Types.ObjectId,
             ref: "User",
@@ -92,5 +107,4 @@ const RecipeSchema = new Schema<IRecipe>(
     { timestamps: true }
 );
 
-// Changed export name to avoid conflict with the interface
 export const Recipe = mongoose.model<IRecipe>("Recipe", RecipeSchema);
