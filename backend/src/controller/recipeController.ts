@@ -76,8 +76,10 @@ export const fetchRecipeByUserId = async (req: Request, res: Response) => {
     const { userId } = req.params;
     try {
         const recipes = await Recipe.find({ createdBy: userId })
-            .populate('createdBy', 'firstName surname avatarUrl')
+            .populate('createdBy', 'firstName surname')
             .sort({ createdAt: -1 });
+
+        res.status(200).json(recipes);
 
     } catch (error) {
         console.error("Error fetching recipes by user:", error);

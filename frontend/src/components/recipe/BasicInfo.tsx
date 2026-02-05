@@ -11,13 +11,13 @@ const BasicInfo = ({ onNext }: { onNext: () => void }) => {
     const [activePicker, setActivePicker] = useState<'cuisine' | 'category' | null>(null);
 
     const handleUpdate = (field: string, value: any) => {
-        const processedValue = (field === 'prepTime' || field === 'cookTime')
-            ? (parseInt(value) || 0)
-            : value;
+        let processedValue = value;
+        if (['prepTime', 'cookTime', 'servings'].includes(field)) {
+            processedValue = value === '' ? '' : (parseInt(value) || 0);
+        }
         setDraft({ [field]: processedValue });
     };
 
-    // Refactored helper to ensure unique keys during mapping
     const renderPicker = (type: 'cuisine' | 'category', data: readonly string[]) => (
         <Modal visible={activePicker === type} transparent animationType="slide">
             <Pressable style={styles.modalOverlay} onPress={() => setActivePicker(null)}>
@@ -28,7 +28,6 @@ const BasicInfo = ({ onNext }: { onNext: () => void }) => {
                     <ScrollView>
                         {data.map((item, index) => (
                             <TouchableOpacity
-                                // KEY ADDED HERE: Using item name as it is unique in your enums
                                 key={`${type}-${item}-${index}`}
                                 style={styles.optionItem}
                                 onPress={() => {
@@ -50,19 +49,19 @@ const BasicInfo = ({ onNext }: { onNext: () => void }) => {
 
     return (
         <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
-            <Text style={styles.sectionTitle}>Basic Details</Text>
+            <Text style={styles.sectionTitle}>{draft._id ? 'Edit Recipe' : 'Basic Details'}</Text>
 
             <Text style={styles.label}>Recipe Name</Text>
             <Input
                 placeholder="e.g. Grandma's Special Pasta"
-                value={draft.name}
+                value={draft.name || ''}
                 onChange={(v: string) => handleUpdate('name', v)}
             />
 
             <Text style={styles.label}>Image URL</Text>
             <Input
                 placeholder="https://example.com/food.jpg"
-                value={draft.imageUrl}
+                value={draft.imageUrl || ''}
                 onChange={(v: string) => handleUpdate('imageUrl', v)}
             />
 
@@ -70,7 +69,7 @@ const BasicInfo = ({ onNext }: { onNext: () => void }) => {
             <Input
                 placeholder="Briefly describe your delicious dish..."
                 multiline={true}
-                value={draft.description}
+                value={draft.description || ''}
                 onChange={(v: string) => handleUpdate('description', v)}
             />
 
@@ -82,7 +81,6 @@ const BasicInfo = ({ onNext }: { onNext: () => void }) => {
                         <Ionicons name="chevron-down" size={16} color="#64748b" />
                     </TouchableOpacity>
                 </View>
-
                 <View style={{ flex: 1, marginLeft: 10 }}>
                     <Text style={styles.label}>Cuisine</Text>
                     <TouchableOpacity style={styles.pickerTrigger} onPress={() => setActivePicker('cuisine')}>
@@ -96,21 +94,31 @@ const BasicInfo = ({ onNext }: { onNext: () => void }) => {
                 <View style={{ flex: 1 }}>
                     <Text style={styles.label}>Prep (min)</Text>
                     <Input
-                        keyboard="numeric"
+                        keyboardType="numeric"
                         placeholder="15"
-                        value={draft.prepTime?.toString()}
+                        value={draft.prepTime?.toString() || ''}
                         onChange={(v: string) => handleUpdate('prepTime', v)}
                     />
                 </View>
                 <View style={{ flex: 1, marginLeft: 10 }}>
                     <Text style={styles.label}>Cook (min)</Text>
                     <Input
-                        keyboard="numeric"
+                        keyboardType="numeric"
                         placeholder="20"
-                        value={draft.cookTime?.toString()}
+                        value={draft.cookTime?.toString() || ''}
                         onChange={(v: string) => handleUpdate('cookTime', v)}
                     />
                 </View>
+            </View>
+
+            <View style={{ width: '48%' }}>
+                <Text style={styles.label}>Servings (plates)</Text>
+                <Input
+                    keyboardType="numeric"
+                    placeholder="2"
+                    value={draft.servings?.toString() || ''}
+                    onChange={(v: string) => handleUpdate('servings', v)}
+                />
             </View>
 
             {renderPicker('category', MEAL_CATEGORIES)}
@@ -131,15 +139,9 @@ const styles = StyleSheet.create({
     label: { fontSize: 14, fontWeight: '700', color: '#475569', marginBottom: 6, marginTop: 12 },
     row: { flexDirection: 'row', marginBottom: 5 },
     pickerTrigger: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: '#f8fafc',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        height: 48,
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10,
+        paddingHorizontal: 12, height: 48,
     },
     pickerValue: { fontSize: 14, color: '#1e293b', fontWeight: '500' },
     mainButton: { backgroundColor: '#f97316', padding: 18, borderRadius: 14, alignItems: 'center', marginTop: 30 },

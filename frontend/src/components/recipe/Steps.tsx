@@ -1,15 +1,5 @@
 import React from 'react';
-import {
-    View,
-    Text,
-    StyleSheet,
-    FlatList,
-    TouchableOpacity,
-    Alert,
-    ActivityIndicator,
-    KeyboardAvoidingView,
-    Platform
-} from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRecipeStore } from '@/src/store/recipeStore';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { recipeService } from '@/src/service/recipeService';
@@ -17,45 +7,54 @@ import { useRouter } from 'expo-router';
 import Input from '../Input';
 import { Ionicons } from '@expo/vector-icons';
 
-export default function Steps({ onBack }: any) {
+export default function Steps({ onBack }: { onBack: () => void }) {
     const { draft, resetDraft, setDraft } = useRecipeStore();
     const router = useRouter();
     const queryClient = useQueryClient();
+
     const steps = draft.steps || [];
 
     const { mutate, isPending } = useMutation({
-        mutationFn: recipeService.createRecipe,
-        onSuccess: () => {
+        mutationFn: (data: any) => {
+            return data._id ? recipeService.updateRecipe(data._id, data) : recipeService.createRecipe(data);
+        },
+        onSuccess: (_, variables: any) => {
             queryClient.invalidateQueries({ queryKey: ['my-recipes'] });
+            if (variables._id) {
+                queryClient.invalidateQueries({ queryKey: ['recipe', variables._id] });
+            }
             resetDraft();
-            Alert.alert("Success", "Recipe Published!");
-            router.replace('/(tabs)'); // Navigate back to main feed
+            Alert.alert("Success", variables._id ? "Changes Saved!" : "Recipe Published!");
+            router.dismissAll();
         },
         onError: (err) => {
             Alert.alert("Error", "Could not save recipe.");
-            console.log('err=>', err);
+            console.error('Save error:', err);
         }
     });
 
     const updateStep = (index: number, val: string) => {
         const list = [...steps];
-        list[index] = { stepNumber: index + 1, instruction: val };
+        list[index] = {
+            ...list[index],
+            stepNumber: index + 1,
+            instruction: val
+        };
         setDraft({ steps: list });
     };
 
     const addStep = () => {
-        setDraft({ steps: [...steps, { stepNumber: steps.length + 1, instruction: '' }] });
+        setDraft({
+            steps: [...steps, { stepNumber: steps.length + 1, instruction: '' }]
+        });
     };
 
-    // UI Parts for FlatList
-    const ListHeader = () => <Text style={styles.sectionTitle}>Instructions</Text>;
-
-    const ListFooter = () => (
-        <TouchableOpacity onPress={addStep} style={styles.addButton}>
-            <Ionicons name="add" size={20} color="#f97316" />
-            <Text style={{ color: '#f97316', fontWeight: '700', marginLeft: 5 }}>Add Step</Text>
-        </TouchableOpacity>
-    );
+    const removeStep = (index: number) => {
+        const filtered = steps
+            .filter((_, i) => i !== index)
+            .map((step, i) => ({ ...step, stepNumber: i + 1 }));
+        setDraft({ steps: filtered });
+    };
 
     return (
         <KeyboardAvoidingView
@@ -67,8 +66,13 @@ export default function Steps({ onBack }: any) {
                 <FlatList
                     data={steps}
                     keyExtractor={(_, i) => `step-${i}`}
-                    ListHeaderComponent={ListHeader}
-                    ListFooterComponent={ListFooter}
+                    ListHeaderComponent={() => <Text style={styles.sectionTitle}>Instructions</Text>}
+                    ListFooterComponent={() => (
+                        <TouchableOpacity onPress={addStep} style={styles.addButton}>
+                            <Ionicons name="add" size={20} color="#f97316" />
+                            <Text style={{ color: '#f97316', fontWeight: '700', marginLeft: 5 }}>Add Step</Text>
+                        </TouchableOpacity>
+                    )}
                     keyboardShouldPersistTaps="handled"
                     contentContainerStyle={styles.scrollContent}
                     renderItem={({ item, index }) => (
@@ -76,10 +80,7 @@ export default function Steps({ onBack }: any) {
                             <View style={styles.labelRow}>
                                 <Text style={styles.stepLabel}>Step {index + 1}</Text>
                                 {steps.length > 1 && (
-                                    <TouchableOpacity onPress={() => {
-                                        const filtered = steps.filter((_, i) => i !== index);
-                                        setDraft({ steps: filtered });
-                                    }}>
+                                    <TouchableOpacity onPress={() => removeStep(index)}>
                                         <Ionicons name="trash-outline" size={18} color="#ef4444" />
                                     </TouchableOpacity>
                                 )}
@@ -88,7 +89,7 @@ export default function Steps({ onBack }: any) {
                                 multiline
                                 placeholder="e.g. Boil water and add salt..."
                                 value={item.instruction}
-                                onChange={(v: any) => updateStep(index, v)}
+                                onChange={(v: string) => updateStep(index, v)}
                             />
                         </View>
                     )}
@@ -106,7 +107,9 @@ export default function Steps({ onBack }: any) {
                         {isPending ? (
                             <ActivityIndicator color="#fff" />
                         ) : (
-                            <Text style={styles.publishText}>Publish Recipe</Text>
+                            <Text style={styles.publishText}>
+                                {(draft as any)._id ? 'Save Changes' : 'Publish Recipe'}
+                            </Text>
                         )}
                     </TouchableOpacity>
                 </View>

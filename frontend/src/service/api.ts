@@ -3,7 +3,8 @@ import { useAuthStore } from '../store/authStore'
 import { use } from 'react'
 
 const apiClient = axios.create({
-    baseURL : 'http://192.168.100.4:5000/api'
+    baseURL: 'http://192.168.100.4:5000/api',
+    timeout: 5000
 })
 
 apiClient.interceptors.request.use(async (config) => {

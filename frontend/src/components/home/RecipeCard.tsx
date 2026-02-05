@@ -10,9 +10,8 @@ interface RecipeCardProps {
     item: RecipeResponse;
 }
 
-// Get screen width to calculate perfect card width for 2 columns
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - 50) / 2; // (Total width - horizontal margins) / 2
+const CARD_WIDTH = (width - 50) / 2; 
 
 export default function RecipeCard({ item }: RecipeCardProps) {
     const router = useRouter();
@@ -69,7 +68,6 @@ const styles = StyleSheet.create({
         backgroundColor: '#fff',
         borderRadius: 10,
         marginBottom: 16,
-        // Modern soft shadow
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.08,
@@ -77,7 +75,7 @@ const styles = StyleSheet.create({
         elevation: 3,
         borderWidth: 1,
         borderColor: '#f1f5f9',
-        overflow: 'hidden'
+        overflow: 'hidden',
     },
     imageContainer: {
         width: '100%',
@@ -98,8 +96,6 @@ const styles = StyleSheet.create({
 
     },
     cuisineBadge: {
-
-
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
         paddingHorizontal: 8,
         paddingVertical: 4,

@@ -21,20 +21,22 @@ const createEmptyIngredient = (): Ingredient => ({
 
 const Ingredients = ({ onNext, onBack }: { onNext: () => void, onBack: () => void }) => {
     const { draft, setDraft } = useRecipeStore();
-
-    const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(
-        draft.ingredients?.length
-            ? (draft.ingredients as Ingredient[])
-            : [createEmptyIngredient()]
-    );
-
     const [activePickerIndex, setActivePickerIndex] = useState<number | null>(null);
 
-    // Debounced sync to store
+    const [localIngredients, setLocalIngredients] = useState<Ingredient[]>(() => {
+        if (draft.ingredients && draft.ingredients.length > 0) {
+            return draft.ingredients.map((ing: any) => ({
+                ...ing,
+                tempId: ing.tempId || Date.now().toString() + Math.random().toString(36)
+            }));
+        }
+        return [createEmptyIngredient()];
+    });
+
     useEffect(() => {
         const id = setTimeout(() => {
             setDraft({ ingredients: localIngredients });
-        }, 500);
+        }, 300);
         return () => clearTimeout(id);
     }, [localIngredients]);
 
@@ -64,24 +66,18 @@ const Ingredients = ({ onNext, onBack }: { onNext: () => void, onBack: () => voi
         }
     };
 
-    // Header component to be used inside FlatList
-    const ListHeader = () => (
-        <View style={styles.header}>
-            <Text style={styles.sectionTitle}>Ingredients</Text>
-            <Text style={styles.subtitle}>List items and measurements</Text>
-        </View>
-    );
-
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1 }}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
             <View style={styles.container}>
                 <FlatList
                     data={localIngredients}
                     keyExtractor={(item) => item.tempId}
-                    ListHeaderComponent={ListHeader} // FIX: Prevents "VirtualizedList" nesting errors
+                    ListHeaderComponent={() => (
+                        <View style={styles.header}>
+                            <Text style={styles.sectionTitle}>Ingredients</Text>
+                            <Text style={styles.subtitle}>List items and measurements</Text>
+                        </View>
+                    )}
                     keyboardShouldPersistTaps="handled"
                     contentContainerStyle={styles.listContainer}
                     renderItem={({ item, index }) => (
@@ -93,24 +89,18 @@ const Ingredients = ({ onNext, onBack }: { onNext: () => void, onBack: () => voi
                                     onChange={(v: string) => updateLocalItem(item.tempId, 'name', v)}
                                 />
                             </View>
-
                             <View style={styles.qtyCol}>
                                 <Input
                                     placeholder="0"
-                                    keyboard="numeric"
+                                    keyboardType="numeric"
                                     value={item.quantity === 0 ? '' : item.quantity.toString()}
                                     onChange={(v: string) => updateLocalItem(item.tempId, 'quantity', v)}
                                 />
                             </View>
-
-                            <TouchableOpacity
-                                style={styles.unitCol}
-                                onPress={() => setActivePickerIndex(index)}
-                            >
+                            <TouchableOpacity style={styles.unitCol} onPress={() => setActivePickerIndex(index)}>
                                 <Text style={styles.unitText} numberOfLines={1}>{item.unit}</Text>
                                 <Ionicons name="chevron-down" size={12} color="#94a3b8" />
                             </TouchableOpacity>
-
                             <TouchableOpacity onPress={() => removeItem(item.tempId)} style={styles.deleteCol}>
                                 <Ionicons name="trash-outline" size={18} color="#ef4444" />
                             </TouchableOpacity>
@@ -124,7 +114,7 @@ const Ingredients = ({ onNext, onBack }: { onNext: () => void, onBack: () => voi
                             <ScrollView>
                                 {RECIPE_UNITS.map((unit, i) => (
                                     <TouchableOpacity
-                                        key={`unit-${unit}-${i}`} // FIX: Added unique key to modal list
+                                        key={`unit-${unit}-${i}`}
                                         style={styles.unitOption}
                                         onPress={() => {
                                             updateLocalItem(localIngredients[activePickerIndex!].tempId, 'unit', unit);
@@ -162,75 +152,25 @@ const styles = StyleSheet.create({
     sectionTitle: { fontSize: 24, fontWeight: '800', color: '#1e293b' },
     subtitle: { fontSize: 14, color: '#64748b', marginBottom: 5 },
     listContainer: { paddingBottom: 180 },
-    cardRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 16,
-        marginBottom: 8,
-        width: '100%',
-    },
+    cardRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginBottom: 8, width: '100%' },
     nameCol: { flex: 1 },
     qtyCol: { width: 60, marginLeft: 8 },
     unitCol: {
-        width: 75,
-        marginLeft: 8,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: '#f8fafc',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        borderRadius: 8,
-        paddingHorizontal: 8,
-        height: 40,
+        width: 75, marginLeft: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 8, height: 40,
     },
     deleteCol: { width: 35, alignItems: 'flex-end', marginLeft: 4 },
     unitText: { fontSize: 12, fontWeight: '600', color: '#1e293b' },
-    footer: {
-        position: 'absolute',
-        bottom: 0,
-        width: '100%',
-        backgroundColor: '#fff',
-        padding: 20,
-        paddingBottom: 35,
-        borderTopWidth: 1,
-        borderTopColor: '#f1f5f9'
-    },
-    addButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 15,
-        padding: 12,
-        borderRadius: 12,
-        borderWidth: 1,
-        borderColor: '#f97316',
-        borderStyle: 'dashed'
-    },
+    footer: { position: 'absolute', bottom: 0, width: '100%', backgroundColor: '#fff', padding: 20, paddingBottom: 35, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
+    addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 15, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#f97316', borderStyle: 'dashed' },
     addText: { color: '#f97316', fontWeight: '700' },
     navRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     backBtn: { padding: 10 },
     backLabel: { color: '#64748b', fontWeight: '600' },
-    nextBtn: {
-        backgroundColor: '#f97316',
-        paddingHorizontal: 35,
-        paddingVertical: 14,
-        borderRadius: 12
-    },
+    nextBtn: { backgroundColor: '#f97316', paddingHorizontal: 35, paddingVertical: 14, borderRadius: 12 },
     nextLabel: { color: '#fff', fontWeight: '700' },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center'
-    },
-    modalContent: {
-        backgroundColor: '#fff',
-        width: '75%',
-        borderRadius: 15,
-        paddingVertical: 10,
-        maxHeight: '50%'
-    },
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+    modalContent: { backgroundColor: '#fff', width: '75%', borderRadius: 15, paddingVertical: 10, maxHeight: '50%' },
     unitOption: { padding: 15, borderBottomWidth: 0.5, borderBottomColor: '#f1f5f9' },
     optionText: { textAlign: 'center', fontSize: 16 }
 });

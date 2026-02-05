@@ -1,7 +1,7 @@
 import apiClient from "./api";
 import { CUISINES } from '@shared/constants/cuisine';
 import { MEAL_CATEGORIES } from '@shared/constants/mealCategory';
-import { RecipeInput } from '@shared/validator/recipeSchema'; // Import your Zod type
+import { RecipeInput } from '@shared/validator/recipeSchema';
 
 interface Ingredient {
     name: string;
@@ -52,6 +52,7 @@ export const recipeService = {
 
     fetchRecipeByUserId: async (userId: string): Promise<RecipeResponse[]> => {
         const { data } = await apiClient.get<RecipeResponse[]>(`/recipes/user/${userId}`);
+        console.log('data=',data)
         return data;
     },
 

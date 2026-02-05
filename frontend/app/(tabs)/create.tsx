@@ -13,10 +13,16 @@ const MyRecipes = () => {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
 
-  const { data: myRecipes, isLoading, refetch } = useQuery({
-    queryKey: ['my-recipes', user?._id],
-    queryFn: () => recipeService.fetchRecipeByUserId(user?._id as string),
-    enabled: !!user?._id,
+  const { data: myRecipes, isPending, isError, error, refetch } = useQuery({
+    queryKey: ['my-recipes', user?.id],
+    queryFn: async () => {
+      console.log("Query function triggered...");
+      const res = await recipeService.fetchRecipeByUserId(user?.id as string);
+      console.log("Query successful, data length:", res?.length);
+      return res;
+    },
+    enabled: !!user?.id,
+    retry: 2
   });
 
   const ListHeader = () => (
@@ -42,14 +48,35 @@ const MyRecipes = () => {
     <SafeAreaView style={styles.container}>
       <FlatList
         data={myRecipes}
+        key={2}
+        numColumns={2}
         keyExtractor={(item, index) => item._id ?? index.toString()}
         ListHeaderComponent={ListHeader}
         contentContainerStyle={styles.listContent}
+        columnWrapperStyle={styles.columnWrapper}
         renderItem={({ item }) => <RecipeCard item={item} />}
-        refreshing={isLoading}
+        refreshing={isPending}
         onRefresh={refetch}
-        ListEmptyComponent={
-          !isLoading ? (
+        ListEmptyComponent={() => {
+          if (isPending) {
+            return <ActivityIndicator size="large" color="#f97316" style={{ marginTop: 50 }} />;
+          }
+
+          if (isError) {
+            return (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="cloud-offline-outline" size={64} color="#ef4444" />
+                <Text style={styles.emptyText}>
+                  Whops! We couldn't load your recipes. Check your connection.
+                </Text>
+                <TouchableOpacity style={styles.outlineButton} onPress={() => refetch()}>
+                  <Text style={styles.outlineButtonText}>Try Again</Text>
+                </TouchableOpacity>
+              </View>
+            );
+          }
+
+          return (
             <View style={styles.emptyContainer}>
               <Ionicons name="restaurant-outline" size={64} color="#cbd5e1" />
               <Text style={styles.emptyText}>You haven't shared any recipes yet.</Text>
@@ -60,10 +87,8 @@ const MyRecipes = () => {
                 <Text style={styles.outlineButtonText}>Start Cooking</Text>
               </TouchableOpacity>
             </View>
-          ) : (
-            <ActivityIndicator size="large" color="#f97316" style={{ marginTop: 50 }} />
-          )
-        }
+          );
+        }}
       />
     </SafeAreaView>
   );
@@ -74,6 +99,11 @@ export default MyRecipes;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   listContent: { paddingBottom: 20 },
+  columnWrapper: {
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 10,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -116,4 +146,33 @@ const styles = StyleSheet.create({
     borderColor: '#f97316',
   },
   outlineButtonText: { color: '#f97316', fontWeight: '700' },
+  centered: {},
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginTop: 10,
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  retryButton: {
+    backgroundColor: '#f97316',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
 });

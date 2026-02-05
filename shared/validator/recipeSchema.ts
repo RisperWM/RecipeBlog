@@ -6,6 +6,7 @@ import { MEAL_CATEGORIES } from "../constants/mealCategory";
 
 
 export const recipeSchema = z.object({
+    _id:z.string().optional(),
     name: z.string().min(1, "Recipe name is required"),
 
     category: z.enum(MEAL_CATEGORIES, {

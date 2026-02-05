@@ -11,22 +11,25 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-    token:null,
-    user:null,
-    isHydrated:false,
+    token: null,
+    user: null,
+    isHydrated: false,
 
     setAuth: (token, user) => {
-        storage.saveToken(token)
-        set({token,user})
+        storage.saveToken(token);
+        storage.saveUser(user); // Need to add this to your storage util
+        set({ token, user });
     },
 
     logout: () => {
-        storage.removeToken()
-        set({token:null, user:null})
+        storage.removeToken();
+        storage.removeUser(); // Need to add this
+        set({ token: null, user: null });
     },
 
     hydrate: async () => {
-        const token = await storage.getToken()
-        set({token, isHydrated:true})
+        const token = await storage.getToken();
+        const user = await storage.getUser(); // Load the user object too
+        set({ token, user, isHydrated: true });
     }
 }))

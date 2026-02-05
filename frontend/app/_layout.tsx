@@ -36,10 +36,8 @@ export default function RootLayout() {
     return (
         <QueryClientProvider client={queryClient}>
             <Stack>
-                {/* Main Tab Navigation */}
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-                {/* Auth Group */}
                 <Stack.Screen name="(auth)" options={{ headerShown: false }} />
 
                 <Stack.Screen
