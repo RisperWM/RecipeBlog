@@ -1,8 +1,10 @@
 import React, { useState, useLayoutEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, Image, ActivityIndicator,
-  TouchableOpacity, Dimensions, Alert, TextInput, Modal, Pressable
+  TouchableOpacity, Dimensions, Alert, TextInput, Modal, Pressable,
+  KeyboardAvoidingView, Platform
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { recipeService } from '@/src/service/recipeService';
@@ -19,14 +21,16 @@ export default function RecipeDetailScreen() {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
 
+  // UI State
   const [activeTab, setActiveTab] = useState<'Ingredients' | 'Instructions'>('Ingredients');
   const [checkedIngredients, setCheckedIngredients] = useState<string[]>([]);
   const [newComment, setNewComment] = useState("");
   const [ratingModalVisible, setRatingModalVisible] = useState(false);
   const [selectedStars, setSelectedStars] = useState(0);
 
+  // --- 1. DATA FETCHING ---
   const { data: recipe, isLoading, error } = useQuery({
-    queryKey: ['recipe', id],
+    queryKey: ['recipe', id, user?.id],
     queryFn: () => recipeService.fetchRecipeById(id as string),
     enabled: !!id,
   });
@@ -39,6 +43,7 @@ export default function RecipeDetailScreen() {
 
   const isCurrentlyLiked = !!(recipe as any)?.isLiked;
 
+  // --- 2. HEADER SYNCHRONIZATION ---
   useLayoutEffect(() => {
     navigation.setOptions({
       headerTitle: '',
@@ -47,7 +52,10 @@ export default function RecipeDetailScreen() {
       headerRight: () => (
         <View style={styles.headerRightContainer}>
           <TouchableOpacity
-            onPress={() => router.push({ pathname: '/create-recipe-modal', params: { initialData: JSON.stringify(recipe) } })}
+            onPress={() => router.push({
+              pathname: '/create-recipe-modal',
+              params: { initialData: JSON.stringify(recipe) }
+            })}
             style={styles.headerIconButton}
           >
             <Ionicons name="create-outline" size={20} color="#fff" />
@@ -64,40 +72,37 @@ export default function RecipeDetailScreen() {
     });
   }, [navigation, isCurrentlyLiked, recipe]);
 
-
+  // --- 3. MUTATIONS ---
   const { mutate: handleLike } = useMutation({
     mutationFn: () => {
-      if (!user?.id) throw new Error("You must be logged in to like recipes.");
+      if (!user?.id) throw new Error("Please log in to like recipes.");
       return recipeService.toggleLike(id as string, user.id);
     },
     onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: ['recipe', id] });
-      const previousRecipe = queryClient.getQueryData(['recipe', id]);
-
-      queryClient.setQueryData(['recipe', id], (old: any) => {
+      await queryClient.cancelQueries({ queryKey: ['recipe', id, user?.id] });
+      const previousRecipe = queryClient.getQueryData(['recipe', id, user?.id]);
+      queryClient.setQueryData(['recipe', id, user?.id], (old: any) => {
         if (!old) return old;
         const currentStatus = !!old.isLiked;
         return {
           ...old,
           isLiked: !currentStatus,
-          likesCount: !currentStatus
-            ? (Number(old.likesCount) || 0) + 1
-            : Math.max(0, (Number(old.likesCount) || 1) - 1)
+          likesCount: !currentStatus ? (Number(old.likesCount) || 0) + 1 : Math.max(0, (Number(old.likesCount) || 1) - 1)
         };
       });
       return { previousRecipe };
     },
     onError: (err: any, __, context) => {
-      queryClient.setQueryData(['recipe', id], context?.previousRecipe);
-      Alert.alert("Action Failed", err.message || "Could not update like status.");
+      queryClient.setQueryData(['recipe', id, user?.id], context?.previousRecipe);
+      Alert.alert("Action Failed", err.message);
     },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['recipe', id] }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ['recipe', id, user?.id] }),
   });
 
   const { mutate: submitRating, isPending: isSubmittingRating } = useMutation({
     mutationFn: (score: number) => recipeService.addRating(id!, user?.id || '', score),
     onSuccess: (data) => {
-      queryClient.setQueryData(['recipe', id], (old: any) => ({
+      queryClient.setQueryData(['recipe', id, user?.id], (old: any) => ({
         ...old,
         averageRating: data.averageRating,
         ratingCount: data.ratingCount
@@ -129,95 +134,116 @@ export default function RecipeDetailScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: '#fff' }}>
-      <ScrollView style={styles.container} bounces={false} showsVerticalScrollIndicator={false}>
-        <Image source={{ uri: recipe.imageUrl }} style={styles.heroImage} />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      >
+        <ScrollView
+          style={styles.container}
+          bounces={false}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 20 }}
+        >
+          <Image source={{ uri: recipe.imageUrl }} style={styles.heroImage} />
 
-        <View style={styles.content}>
-          <View style={styles.headerSection}>
-            <Text style={styles.title}>{recipe.name}</Text>
-            <TouchableOpacity style={styles.ratingRow} onPress={() => setRatingModalVisible(true)}>
-              <Ionicons name="star" size={16} color="#f59e0b" />
-              <Text style={styles.ratingValue}>{(recipe as any).averageRating || '0.0'}</Text>
-              <Text style={styles.ratingCount}>({(recipe as any).ratingCount || 0} reviews) • Rate</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.metaRow}>
-            <MetaBox icon="time-outline" label="Total" value={`${(recipe.prepTime || 0) + (recipe.cookTime || 0)}m`} />
-            <View style={styles.metaDivider} />
-            <MetaBox icon="people-outline" label="Servings" value={`${recipe.servings || 1}`} />
-            <View style={styles.metaDivider} />
-            <MetaBox icon="flame-outline" label="Category" value={recipe.category} />
-          </View>
-
-          <View style={styles.tabContainer}>
-            {['Ingredients', 'Instructions'].map((tab) => (
-              <TouchableOpacity
-                key={tab}
-                onPress={() => setActiveTab(tab as any)}
-                style={[styles.tab, activeTab === tab && styles.activeTab]}
-              >
-                <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <View style={styles.detailsContainer}>
-            {activeTab === 'Ingredients' ? (
-              recipe.ingredients?.map((ing, idx) => (
-                <View key={idx} style={styles.ingredientItem}>
-                  <Checkbox
-                    value={checkedIngredients.includes(ing.name)}
-                    onValueChange={() => toggleIngredient(ing.name)}
-                    color={checkedIngredients.includes(ing.name) ? '#f97316' : undefined}
-                    style={styles.checkbox}
-                  />
-                  <Text style={[styles.ingredientText, checkedIngredients.includes(ing.name) && styles.textChecked]}>{ing.name}</Text>
-                  <Text style={styles.qtyText}>{ing.quantity} {ing.unit}</Text>
-                </View>
-              ))
-            ) : (
-              recipe.steps?.map((step, idx) => (
-                <View key={idx} style={styles.stepItem}>
-                  <Text style={styles.stepNumber}>STEP {idx + 1}</Text>
-                  <Text style={styles.stepText}>{step.instruction}</Text>
-                </View>
-              ))
-            )}
-          </View>
-
-          <View style={styles.commentSection}>
-            <Text style={styles.sectionTitle}>Comments ({comments.length})</Text>
-            <View style={styles.commentInputRow}>
-              <TextInput
-                style={styles.input}
-                placeholder="Add a comment..."
-                value={newComment}
-                onChangeText={setNewComment}
-                multiline
-              />
-              <TouchableOpacity
-                onPress={() => submitComment()}
-                disabled={!newComment.trim() || isSubmittingComment}
-                style={[styles.sendBtn, !newComment.trim() && styles.disabledBtn]}
-              >
-                {isSubmittingComment ? <ActivityIndicator color="#fff" size="small" /> : <Ionicons name="send" size={18} color="#fff" />}
+          <View style={styles.content}>
+            <View style={styles.headerSection}>
+              <Text style={styles.title}>{recipe.name}</Text>
+              <TouchableOpacity style={styles.ratingRow} onPress={() => setRatingModalVisible(true)}>
+                <Ionicons name="star" size={16} color="#f59e0b" />
+                <Text style={styles.ratingValue}>{(recipe as any).averageRating || '0.0'}</Text>
+                <Text style={styles.ratingCount}>({(recipe as any).ratingCount || 0} reviews) • Rate</Text>
               </TouchableOpacity>
             </View>
 
-            {comments.map((comment: any) => (
-              <View key={comment._id} style={styles.commentBubble}>
-                <View style={styles.commentHeader}>
-                  <Text style={styles.commentUser}>{comment.userId?.firstName} {comment.userId?.surname}</Text>
-                  <Text style={styles.commentDate}>{new Date(comment.createdAt).toLocaleDateString()}</Text>
-                </View>
-                <Text style={styles.commentText}>{comment.text}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      </ScrollView>
+            <View style={styles.metaRow}>
+              <MetaBox icon="time-outline" label="Total" value={`${(recipe.prepTime || 0) + (recipe.cookTime || 0)}m`} />
+              <View style={styles.metaDivider} />
+              <MetaBox icon="people-outline" label="Servings" value={`${recipe.servings || 1}`} />
+              <View style={styles.metaDivider} />
+              <MetaBox icon="flame-outline" label="Category" value={recipe.category} />
+            </View>
 
+            <View style={styles.tabContainer}>
+              {['Ingredients', 'Instructions'].map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  onPress={() => setActiveTab(tab as any)}
+                  style={[styles.tab, activeTab === tab && styles.activeTab]}
+                >
+                  <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>{tab}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.detailsContainer}>
+              {activeTab === 'Ingredients' ? (
+                recipe.ingredients?.map((ing, idx) => (
+                  <View key={idx} style={styles.ingredientItem}>
+                    <Checkbox
+                      value={checkedIngredients.includes(ing.name)}
+                      onValueChange={() => toggleIngredient(ing.name)}
+                      color={checkedIngredients.includes(ing.name) ? '#f97316' : undefined}
+                      style={styles.checkbox}
+                    />
+                    <Text style={[styles.ingredientText, checkedIngredients.includes(ing.name) && styles.textChecked]}>{ing.name}</Text>
+                    <Text style={styles.qtyText}>{ing.quantity} {ing.unit}</Text>
+                  </View>
+                ))
+              ) : (
+                recipe.steps?.map((step, idx) => (
+                  <View key={idx} style={styles.stepItem}>
+                    <Text style={styles.stepNumber}>STEP {idx + 1}</Text>
+                    <Text style={styles.stepText}>{step.instruction}</Text>
+                  </View>
+                ))
+              )}
+            </View>
+
+            <View style={styles.commentSection}>
+              <Text style={styles.sectionTitle}>Comments ({comments.length})</Text>
+              {comments.map((comment: any) => (
+                <View key={comment._id} style={styles.commentBubble}>
+                  <View style={styles.commentHeader}>
+                    <Text style={styles.commentUser}>{comment.userId?.firstName} {comment.userId?.surname}</Text>
+                    <Text style={styles.commentDate}>{new Date(comment.createdAt).toLocaleDateString()}</Text>
+                  </View>
+                  <Text style={styles.commentText}>{comment.text}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+
+        {/* STICKY INPUT FOOTER */}
+        <SafeAreaView style={styles.stickyInputWrapper}>
+          <View style={styles.commentInputRow}>
+            <TextInput
+              style={styles.input}
+              placeholder="Add a comment..."
+              value={newComment}
+              onChangeText={setNewComment}
+              multiline
+              placeholderTextColor="#94a3b8"
+            />
+            <TouchableOpacity
+              onPress={() => submitComment()}
+              disabled={!newComment.trim() || isSubmittingComment}
+              style={[styles.sendBtn, !newComment.trim() && styles.disabledBtn]}
+            >
+              {isSubmittingComment ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Ionicons name="send" size={18} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
+
+      {/* RATING MODAL */}
       <Modal animationType="fade" transparent visible={ratingModalVisible} onRequestClose={() => setRatingModalVisible(false)}>
         <Pressable style={styles.modalOverlay} onPress={() => setRatingModalVisible(false)}>
           <Pressable style={styles.modalContent}>
@@ -285,12 +311,16 @@ const styles = StyleSheet.create({
   stepItem: { marginBottom: 20 },
   stepNumber: { fontSize: 11, fontWeight: '900', color: '#f97316', marginBottom: 4 },
   stepText: { fontSize: 16, color: '#334155', lineHeight: 24 },
-  commentSection: { borderTopWidth: 1, borderColor: '#f1f5f9', paddingTop: 25 },
+  commentSection: { borderTopWidth: 1, borderColor: '#f1f5f9', paddingTop: 25, paddingBottom: 20 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a', marginBottom: 15 },
-  commentInputRow: { flexDirection: 'row', gap: 10, marginBottom: 20 },
-  input: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, borderWidth: 1, borderColor: '#e2e8f0', minHeight: 45 },
-  sendBtn: { backgroundColor: '#f97316', width: 45, height: 45, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+
+  // NEW STICKY INPUT STYLES
+  stickyInputWrapper: { borderTopWidth: 1, borderColor: '#f1f5f9', backgroundColor: '#fff', paddingHorizontal: 15, paddingTop: 10 },
+  commentInputRow: { flexDirection: 'row', gap: 10, alignItems: 'center', marginBottom: Platform.OS === 'android' ? 10 : 0 },
+  input: { flex: 1, backgroundColor: '#f8fafc', borderRadius: 20, paddingHorizontal: 15, paddingVertical: 12, borderWidth: 1, borderColor: '#e2e8f0', maxHeight: 100, fontSize: 15 },
+  sendBtn: { backgroundColor: '#f97316', width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },
   disabledBtn: { backgroundColor: '#cbd5e1' },
+
   commentBubble: { backgroundColor: '#f8fafc', padding: 15, borderRadius: 16, marginBottom: 12 },
   commentHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 },
   commentUser: { fontWeight: '700', fontSize: 14, color: '#1e293b' },
