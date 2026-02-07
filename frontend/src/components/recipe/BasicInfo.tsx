@@ -1,5 +1,14 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, Modal, Pressable } from 'react-native';
+import {
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
+    Modal,
+    Pressable,
+    Platform,
+} from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useRecipeStore } from '@/src/store/recipeStore';
 import Input from '../Input';
 import { CUISINES } from '@shared/constants/cuisine';
@@ -25,7 +34,7 @@ const BasicInfo = ({ onNext }: { onNext: () => void }) => {
                     <View style={styles.modalHeader}>
                         <Text style={styles.modalTitle}>Select {type === 'cuisine' ? 'Cuisine' : 'Category'}</Text>
                     </View>
-                    <ScrollView>
+                    <KeyboardAwareScrollView>
                         {data.map((item, index) => (
                             <TouchableOpacity
                                 key={`${type}-${item}-${index}`}
@@ -41,14 +50,23 @@ const BasicInfo = ({ onNext }: { onNext: () => void }) => {
                                 )}
                             </TouchableOpacity>
                         ))}
-                    </ScrollView>
+                    </KeyboardAwareScrollView>
                 </View>
             </Pressable>
         </Modal>
     );
 
     return (
-        <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
+        <KeyboardAwareScrollView
+            style={styles.container}
+            // Important: extraHeight provides the "push" needed to keep bottom fields visible
+            extraHeight={150}
+            enableOnAndroid={true}
+            enableAutomaticScroll={true}
+            keyboardShouldPersistTaps="handled"
+            // paddingBottom must be large enough to allow the scrollview to actually move up
+            contentContainerStyle={{ paddingBottom: 100 }}
+        >
             <Text style={styles.sectionTitle}>{draft._id ? 'Edit Recipe' : 'Basic Details'}</Text>
 
             <Text style={styles.label}>Recipe Name</Text>
@@ -71,6 +89,8 @@ const BasicInfo = ({ onNext }: { onNext: () => void }) => {
                 multiline={true}
                 value={draft.description || ''}
                 onChange={(v: string) => handleUpdate('description', v)}
+                // Fixes issues where multiline inputs get buried
+                scrollEnabled={false}
             />
 
             <View style={styles.row}>
@@ -127,7 +147,7 @@ const BasicInfo = ({ onNext }: { onNext: () => void }) => {
             <TouchableOpacity style={styles.mainButton} onPress={onNext}>
                 <Text style={styles.buttonText}>Next: Ingredients</Text>
             </TouchableOpacity>
-        </ScrollView>
+        </KeyboardAwareScrollView>
     );
 };
 

@@ -2,10 +2,11 @@ import { StyleSheet, Text, View, TextInput } from 'react-native'
 import React from 'react'
 import { Ionicons } from "@expo/vector-icons";
 
-const Input = ({ icon, placeholder, value, onChange, multiline = false, keyboard = "default" }: any) => (
+const Input = ({ icon, placeholder, value, onChange, multiline = false, keyboard = "default", ...props }: any) => (
     <View style={styles.inputWrapper}>
         <Ionicons name={icon} size={20} color="#64748b" />
         <TextInput
+            {...props}
             placeholder={placeholder}
             value={value}
             onChangeText={onChange}
