@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
-import { useAuthStore } from '../src/store/authStore';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useAuthStore } from '../src/store/authStore';
 
 const queryClient = new QueryClient();
 
@@ -12,41 +12,53 @@ export default function RootLayout() {
 
     useEffect(() => {
         hydrate();
-    }, []);
+    }, [hydrate]);
 
     useEffect(() => {
         if (!isHydrated) return;
 
-        const firstSegment = segments[0] as string;
-        const inAuthGroup = firstSegment === '(auth)';
+        const segmentList = segments as string[];
+        const inAuthGroup = segmentList.includes('(auth)');
 
-        const timeout = setTimeout(() => {
+        const navigationTimeout = setTimeout(() => {
             if (!token && !inAuthGroup) {
-                router.replace('/(auth)/login' as any);
+                router.replace('/(auth)/login');
             } else if (token && inAuthGroup) {
                 router.replace('/(tabs)');
             }
         }, 1);
 
-        return () => clearTimeout(timeout);
-    }, [token, isHydrated, segments]);
+        return () => clearTimeout(navigationTimeout);
+    }, [token, isHydrated, segments, router]);
 
-    if (!isHydrated) return null;
+    if (!isHydrated) {
+        return null;
+    }
 
     return (
         <QueryClientProvider client={queryClient}>
-            <Stack>
+            <Stack
+                screenOptions={{
+                    headerShown: false, 
+                    contentStyle: { backgroundColor: '#fff' },
+                }}
+            >
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
 
-                <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+                <Stack.Screen
+                    name="recipe-detail/[id]"
+                    options={{
+                        headerShown: false,
+                        animation: 'slide_from_right'
+                    }}
+                />
 
                 <Stack.Screen
                     name="create-recipe-modal"
                     options={{
-                        presentation: 'modal', 
-                        headerShown: false,
+                        presentation: 'modal',
                         gestureEnabled: true,
-                        animation: 'slide_from_bottom'
+                        animation: 'slide_from_bottom',
                     }}
                 />
             </Stack>
