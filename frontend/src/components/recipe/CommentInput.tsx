@@ -8,14 +8,28 @@ interface Props {
     onChange: (t: string) => void;
     onSubmit: () => void;
     isPending: boolean;
+    isEditing?: boolean;     
+    onCancelEdit?: () => void;
 }
 
-export const CommentInput = ({ value, onChange, onSubmit, isPending }: Props) => (
+export const CommentInput = ({
+    value,
+    onChange,
+    onSubmit,
+    isPending,
+    isEditing,
+    onCancelEdit
+}: Props) => (
     <SafeAreaView style={styles.wrapper} edges={['bottom']}>
         <View style={styles.row}>
+            {isEditing && (
+                <TouchableOpacity onPress={onCancelEdit} style={styles.cancelBtn}>
+                    <Ionicons name="close-circle" size={24} color="#64748b" />
+                </TouchableOpacity>
+            )}
             <TextInput
-                style={styles.input}
-                placeholder="Add a comment..."
+                style={[styles.input, isEditing && styles.editingInput]}
+                placeholder={isEditing ? "Edit your comment..." : "Add a comment..."}
                 value={value}
                 onChangeText={onChange}
                 multiline
@@ -24,12 +38,16 @@ export const CommentInput = ({ value, onChange, onSubmit, isPending }: Props) =>
             <TouchableOpacity
                 onPress={onSubmit}
                 disabled={!value.trim() || isPending}
-                style={[styles.sendBtn, !value.trim() && styles.disabledBtn]}
+                style={[
+                    styles.sendBtn,
+                    !value.trim() && styles.disabledBtn,
+                    isEditing && { backgroundColor: '#10b981' }
+                ]}
             >
                 {isPending ? (
                     <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                    <Ionicons name="send" size={18} color="#fff" />
+                    <Ionicons name={isEditing ? "checkmark" : "send"} size={18} color="#fff" />
                 )}
             </TouchableOpacity>
         </View>
@@ -59,7 +77,16 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#e2e8f0',
         maxHeight: 100,
-        fontSize: 15
+        fontSize: 15,
+        color: '#1e293b'
+    },
+    editingInput: {
+        borderColor: '#10b981',
+        backgroundColor: '#f0fdf4'
+    },
+    cancelBtn: {
+        justifyContent: 'center',
+        alignItems: 'center'
     },
     sendBtn: {
         backgroundColor: '#f97316',

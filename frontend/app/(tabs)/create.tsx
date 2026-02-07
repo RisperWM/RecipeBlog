@@ -16,9 +16,7 @@ const MyRecipes = () => {
   const { data: myRecipes, isPending, isError, error, refetch } = useQuery({
     queryKey: ['my-recipes', user?.id],
     queryFn: async () => {
-      console.log("Query function triggered...");
       const res = await recipeService.fetchRecipeByUserId(user?.id as string);
-      console.log("Query successful, data length:", res?.length);
       return res;
     },
     enabled: !!user?.id,

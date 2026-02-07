@@ -192,8 +192,31 @@ export const toggleLike = async (req: Request, res: Response) => {
             likesCount: recipe.likes.length,
             isLiked: !isLiked
         });
+        
     } catch (error) {
         res.status(500).json({ message: "Error updating likes" });
+    }
+};
+
+export const fetchLikedRecipes = async (req: Request, res: Response) => {
+    try {
+        const { userId } = req.params;
+
+        if (!userId) {
+            return res.status(400).json({ message: "User ID is required" });
+        }
+
+        const recipes = await Recipe.find({ likes: userId })
+            .populate('createdBy', 'firstName surname')
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json(recipes);
+    } catch (error: any) {
+        console.error("Error fetching liked recipes:", error);
+        return res.status(500).json({
+            message: "Internal Server Error",
+            error: error.message
+        });
     }
 };
 

@@ -4,8 +4,6 @@ import { MEAL_CATEGORIES } from '@shared/constants/mealCategory';
 import { RecipeInput } from '@shared/validator/recipeSchema';
 import { CommentInput } from '@shared/validator/commentSchema';
 
-// --- Interfaces & Types ---
-
 interface Ingredient {
     name: string;
     quantity: number;
@@ -35,8 +33,8 @@ export interface RecipeResponse {
     cookTime?: number;
     servings?: number;
     tags?: string[];
-    likes:string;
-    ratings:Rating[];
+    likes: string;
+    ratings: Rating[];
     averageRating: number;
     ratingCount: number;
     createdBy: string;
@@ -57,8 +55,6 @@ export interface CommentResponse {
     createdAt: string;
     updatedAt: string;
 }
-
-// --- Service Implementation ---
 
 export const recipeService = {
     /**
@@ -130,7 +126,6 @@ export const recipeService = {
             const { data } = await apiClient.get<CommentResponse[]>(`/comments/recipe/${recipeId}`);
             return data;
         } catch (error: any) {
-            console.log(error.message)
             return [];
         }
     },
@@ -158,7 +153,7 @@ export const recipeService = {
 
     deleteComment: async (commentId: string, userId: string): Promise<{ message: string }> => {
         try {
-            const { data } = await apiClient.delete<{ message: string }>(`/comment/${commentId}`, {
+            const { data } = await apiClient.delete<{ message: string }>(`/comments/${commentId}`, {
                 data: { userId }
             });
             return data;
@@ -173,11 +168,25 @@ export const recipeService = {
                 `/recipes/${recipeId}/like`,
                 { userId }
             );
-
             return data;
         } catch (error: any) {
-            console.log("Like Error:", error.response?.data || error.message);
             throw new Error(error.response?.data?.message || "Like failed");
+        }
+    },
+
+    fetchLikedRecipes: async (userId: string): Promise<RecipeResponse[]> => {
+        if (!userId) {
+            console.warn("fetchLikedRecipes: No userId provided");
+            return [];
+        }
+
+        try {
+            const { data } = await apiClient.get<RecipeResponse[]>(`/recipes/liked/${userId}`);
+            return data || [];
+
+        } catch (error: any) {
+            console.error("Error in fetchLikedRecipes:", error.response?.data || error.message);
+            throw new Error(error.response?.data?.message || "Failed to fetch liked recipes");
         }
     },
 
@@ -193,7 +202,6 @@ export const recipeService = {
             );
             return data;
         } catch (error: any) {
-            console.log("Rating Error:", error.response?.data || error.message);
             throw new Error(error.response?.data?.message || "Rating failed");
         }
     }

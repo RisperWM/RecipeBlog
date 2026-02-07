@@ -60,7 +60,6 @@ const Register = () => {
     },
     onError: (error: any) => {
       const msg = error.response?.data?.message || "Registration failed. Try again.";
-      console.log(error)
       Alert.alert("Error", msg);
     },
   });

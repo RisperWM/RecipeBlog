@@ -9,7 +9,7 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(async (config) => {
     const fullUrl = (config.baseURL ?? '') + (config.url ?? '');
-    console.log('🚀 Request URL:', fullUrl);
+    // console.log('🚀 Request URL:', fullUrl);
     const token = useAuthStore.getState().token
     if (token) {
         config.headers.Authorization = `Bearer ${token}`

@@ -15,8 +15,8 @@ interface Step {
 }
 
 interface Rating {
-    userId:string
-    score:number
+    userId: string
+    score: number
 }
 
 export interface IRecipe extends Document {
@@ -31,10 +31,10 @@ export interface IRecipe extends Document {
     cookTime?: number;
     servings?: number;
     tags?: string[];
-    likes:string[];
+    likes: string[];
     ratings: Rating[],
-    averageRating:number;
-    ratingCount:number;
+    averageRating: number;
+    ratingCount: number;
     createdBy: mongoose.Types.ObjectId | ICreator;
     createdAt: Date;
     updatedAt: Date;

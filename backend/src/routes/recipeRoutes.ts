@@ -8,7 +8,8 @@ import {
     updateRecipe,
     deleteRecipe,
     addRating,
-    toggleLike
+    toggleLike,
+    fetchLikedRecipes
 } from "../controller/recipeController.js";
 
 const router = express.Router();
@@ -20,6 +21,7 @@ router.post("/:id/like", protect, toggleLike);
 router.get("/", fetchAllRecipe);
 router.get("/:id", fetchRecipeById);
 router.get("/user/:userId", fetchRecipeByUserId);
+router.get("/liked/:userId", fetchLikedRecipes);
 
 router.put("/:id", protect, updateRecipe);    
 router.delete("/:id", protect, deleteRecipe);
