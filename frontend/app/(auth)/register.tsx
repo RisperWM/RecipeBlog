@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { Link, useRouter } from "expo-router";
+import { Link, useRouter, Stack } from "expo-router";
 import { useMutation } from "@tanstack/react-query";
 import { authService } from "@/src/service/authService";
 import { registerSchema } from '@shared/validator/registerSchema'
@@ -24,7 +24,6 @@ import PasswordInput from "@/src/components/PasswordInput";
 import Input from "@/src/components/Input";
 import { useAuthStore } from "@/src/store/authStore";
 
-const GENDERS = ["male", "female", "other"];
 const COUNTRIES = [
   { code: "+254", flag: "🇰🇪", name: "Kenya" },
   { code: "+1", flag: "🇺🇸", name: "USA" },
@@ -87,9 +86,12 @@ const Register = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      <Stack.Screen options={{ headerShown: false }} />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -117,7 +119,6 @@ const Register = () => {
               )}
             </View>
 
-            {/* INLINE PHONE & GENDER ROW */}
             <View style={styles.row}>
               <TouchableOpacity style={styles.selector} onPress={() => setModalType("country")}>
                 <Text style={styles.selectorText}>{form.flag} {form.countryCode}</Text>
@@ -134,13 +135,13 @@ const Register = () => {
                   onChangeText={(v) => updateField("phoneNumber", v)}
                 />
               </View>
-
             </View>
+
             {localError?.countryCode && (
               <Text style={{ color: 'red', fontSize: 12 }}>{localError.countryCode[0]}</Text>
             )}
             {localError?.phoneNumber && (
-              <Text style={{ color: 'red', fontSize: 12 }}>{localError.phoneNumber[0]}</Text>
+              <Text style={{ color: 'red', fontSize: 12, marginBottom: 10 }}>{localError.phoneNumber[0]}</Text>
             )}
 
             <View style={styles.inputGroup}>
@@ -148,10 +149,12 @@ const Register = () => {
               {localError?.email && (
                 <Text style={{ color: 'red', fontSize: 12 }}>{localError.email[0]}</Text>
               )}
+
               <PasswordInput icon="" placeholder="Password" value={form.password} onChange={(v: string) => updateField("password", v)} />
               {localError?.password && (
                 <Text style={{ color: 'red', fontSize: 12 }}>{localError.password[0]}</Text>
               )}
+
               <PasswordInput icon="" placeholder="Confirm Password" value={form.confirmPassword} onChange={(v: string) => updateField("confirmPassword", v)} />
             </View>
 
@@ -177,7 +180,6 @@ const Register = () => {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* SELECTION MODAL */}
       <Modal visible={!!modalType} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
@@ -236,7 +238,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlign: "center",
   },
-
   subtitle: {
     textAlign: "center",
     color: "#64748b",
@@ -295,11 +296,28 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 5
   },
-  buttonText: { color: "white", fontWeight: "700", fontSize: 18 },
-  footer: { flexDirection: 'row', justifyContent: 'center', marginVertical: 15 },
-  footerText: { color: "#64748b" },
-  link: { color: "#f97316", fontWeight: "700" },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  buttonText: {
+    color: "white",
+    fontWeight: "700",
+    fontSize: 18
+  },
+  footer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginVertical: 15
+  },
+  footerText: {
+    color: "#64748b"
+  },
+  link: {
+    color: "#f97316",
+    fontWeight: "700"
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end'
+  },
   modalContent: {
     backgroundColor: 'white',
     borderTopLeftRadius: 30,
@@ -307,9 +325,29 @@ const styles = StyleSheet.create({
     padding: 24,
     maxHeight: '60%'
   },
-  modalTitle: { fontSize: 20, fontWeight: '800', marginBottom: 20, color: '#1e293b' },
-  item: { paddingVertical: 18, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  itemText: { fontSize: 16, color: '#334155', fontWeight: '500' },
-  cancelBtn: { marginTop: 10, alignItems: 'center', padding: 15 },
-  cancelText: { color: '#ef4444', fontWeight: '700' }
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 20,
+    color: '#1e293b'
+  },
+  item: {
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  },
+  itemText: {
+    fontSize: 16,
+    color: '#334155',
+    fontWeight: '500'
+  },
+  cancelBtn: {
+    marginTop: 10,
+    alignItems: 'center',
+    padding: 15
+  },
+  cancelText: {
+    color: '#ef4444',
+    fontWeight: '700'
+  }
 });

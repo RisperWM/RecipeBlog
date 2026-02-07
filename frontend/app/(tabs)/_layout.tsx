@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 
