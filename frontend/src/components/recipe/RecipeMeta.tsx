@@ -3,9 +3,9 @@ import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 interface MetaProps {
-    prepTime: number;
-    cookTime: number;
-    servings: number;
+    prepTime: number | undefined;
+    cookTime: number | undefined;
+    servings: number | undefined;
     category: string;
 }
 

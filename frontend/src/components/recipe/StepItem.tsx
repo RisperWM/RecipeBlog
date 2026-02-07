@@ -1,14 +1,43 @@
-import { StyleSheet, Text, View } from 'react-native'
-import React from 'react'
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
-const StepItem = () => {
-  return (
-    <View>
-      <Text>StepItem</Text>
-    </View>
-  )
+interface Step {
+  instruction: string;
 }
 
-export default StepItem
+interface StepListProps {
+  steps: Step[];
+}
 
-const styles = StyleSheet.create({})
+export const StepItem = ({ steps = [] }: StepListProps) => {
+  return (
+    <View style={styles.container}>
+      {steps.map((step, idx) => (
+        <View key={idx} style={styles.stepItem}>
+          <Text style={styles.stepNumber}>STEP {idx + 1}</Text>
+          <Text style={styles.stepText}>{step.instruction}</Text>
+        </View>
+      ))}
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    marginBottom: 30
+  },
+  stepItem: {
+    marginBottom: 20
+  },
+  stepNumber: {
+    fontSize: 11, 
+    fontWeight: "900", 
+    color: "#f97316", 
+    marginBottom: 4
+  },
+  stepText: {
+    fontSize: 16, 
+    color: "#334155", 
+    lineHeight: 24
+  },
+});

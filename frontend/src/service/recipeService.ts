@@ -17,6 +17,11 @@ interface Step {
     instruction: string;
 }
 
+interface Rating {
+    userId: string
+    score: number
+}
+
 export interface RecipeResponse {
     _id: string;
     name: string;
@@ -30,6 +35,10 @@ export interface RecipeResponse {
     cookTime?: number;
     servings?: number;
     tags?: string[];
+    likes:string;
+    ratings:Rating[];
+    averageRating: number;
+    ratingCount: number;
     createdBy: string;
     createdAt: string;
     updatedAt: string;
@@ -164,7 +173,6 @@ export const recipeService = {
                 `/recipes/${recipeId}/like`,
                 { userId }
             );
-            console.log('data=', data)
 
             return data;
         } catch (error: any) {
